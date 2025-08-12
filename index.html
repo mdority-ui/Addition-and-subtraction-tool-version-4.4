@@ -59,7 +59,7 @@
         position: relative;
     }
     .carry-box {
-        height: 35px; 
+        height: 35px;
         width: 100%;
         display: flex;
         justify-content: center;
@@ -77,7 +77,7 @@
         background-color: #fff5f5;
     }
     .subtraction-mode .carry-box {
-        display: none; 
+        display: none;
     }
     .operation-symbol, .decimal-point {
         font-size: 2em;
@@ -112,8 +112,8 @@
     }
     
     .hundreds-group { width: 210px; }
-    .tens-group { width: 150px; } 
-    .ones-group { width: 150px; } 
+    .tens-group { width: 150px; }
+    .ones-group { width: 150px; }
     .tenths-group { width: 230px; }
     .hundredths-group { width: 230px; }
 
@@ -139,10 +139,10 @@
         box-sizing: border-box;
         background-color: #f8f9fa;
     }
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-      -webkit-appearance: none; 
-      margin: 0; 
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
     input[type=number] {
       -moz-appearance: textfield;
@@ -165,24 +165,24 @@
         cursor: grabbing;
     }
     
-    .hundreds { 
+    .hundreds {
         background-color: #3498db;
-        width: 60px; 
+        width: 60px;
         height: 60px;
-        background-image: 
+        background-image:
             repeating-linear-gradient(to right, transparent, transparent 5px, #333 5px, #333 6px),
             repeating-linear-gradient(to bottom, transparent, transparent 5px, #333 5px, #333 6px);
     }
-    .tens { 
+    .tens {
         background-color: #2ecc71;
-        width: 10px; 
+        width: 10px;
         height: 60px;
         background-image: repeating-linear-gradient(to bottom, transparent, transparent 5px, #333 5px, #333 6px);
     }
-    .ones { 
+    .ones {
         background-color: #f1c40f;
-        width: 10px; 
-        height: 10px; 
+        width: 10px;
+        height: 10px;
     }
     .tenths, .hundredths {
         width: 18px;
@@ -464,21 +464,12 @@
         
         const touch = e.touches[0];
         const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
-        
         const trashCan = document.getElementById('trash-can');
-        
-        if (lastTouchTarget && lastTouchTarget !== trashCan) {
-             lastTouchTarget.classList.remove('active');
-        }
-        trashCan.classList.remove('active');
 
-        if (elementUnderTouch) {
-            if(elementUnderTouch.id === 'trash-can'){
-                trashCan.classList.add('active');
-                lastTouchTarget = trashCan;
-            } else {
-                lastTouchTarget = elementUnderTouch;
-            }
+        if (elementUnderTouch && elementUnderTouch.closest('#trash-can')) {
+            trashCan.classList.add('active');
+        } else {
+            trashCan.classList.remove('active');
         }
     }
 
@@ -564,7 +555,7 @@
         const trashCan = document.getElementById('trash-can');
         trashCan.addEventListener('dragover', e => e.preventDefault());
         trashCan.addEventListener('dragenter', () => trashCan.classList.add('active'));
-        trashCan.addEventListener('dragleave', () => trashCan.classList.remove('active');
+        trashCan.addEventListener('dragleave', () => trashCan.classList.remove('active'));
         trashCan.addEventListener('drop', e => { e.preventDefault(); executeDrop(trashCan, draggedElementInfo); trashCan.classList.remove('active'); });
 
         document.querySelectorAll('.column, .carry-box').forEach(zone => {
