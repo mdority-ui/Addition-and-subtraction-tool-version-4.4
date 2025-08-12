@@ -156,6 +156,7 @@
         justify-content: center;
         color: #1a1a1a;
         border: 1px solid #333;
+        touch-action: none; /* Prevent scrolling when dragging on touch devices */
     }
     .block.dragging {
         opacity: 0.0;
@@ -317,6 +318,7 @@
 
 <script>
     let draggedElementInfo = null;
+    let lastTouchTarget = null;
     const PLACES = ['hundreds', 'tens', 'ones', 'tenths', 'hundredths'];
     const PLACE_VALUES = { hundreds: 100, tens: 10, ones: 1, tenths: 0.1, hundredths: 0.01 };
 
@@ -341,19 +343,14 @@
             if (col) col.innerHTML = '';
         });
         let n = Math.max(0, number);
-
-        // Decompose the integer part
         const integerPart = Math.floor(n);
         const h = Math.floor(integerPart / 100);
         const t = Math.floor((integerPart % 100) / 10);
         const o = integerPart % 10;
-        
-        // Decompose the decimal part using string manipulation to avoid floating-point errors
         const n_str = n.toFixed(2);
         const decimal_str = n_str.split('.')[1] || "00";
         const tth = parseInt(decimal_str.charAt(0), 10);
         const hth = parseInt(decimal_str.charAt(1), 10);
-
         const counts = { hundreds: h, tens: t, ones: o, tenths: tth, hundredths: hth };
         PLACES.forEach(p => {
             const col = rowElement.querySelector(`.column[data-place="${p}"]`);
@@ -373,48 +370,131 @@
         const userAnsVal = PLACES.reduce((sum, p) => sum + userAnsRow.querySelector(`.column[data-place="${p}"]`).children.length * PLACE_VALUES[p], 0);
         const correctAns = document.getElementById('operation').value === '+' ? num1 + num2 : num1 - num2;
         const fb = document.getElementById('feedback');
-
         if (Math.abs(userAnsVal - correctAns) < 0.001) {
-            const needsLowerRegrouping = ['tens', 'ones', 'tenths', 'hundredths'].some(p =>
-                userAnsRow.querySelector(`.column[data-place="${p}"]`).children.length >= 10
-            );
-
+            const needsLowerRegrouping = ['tens', 'ones', 'tenths', 'hundredths'].some(p => userAnsRow.querySelector(`.column[data-place="${p}"]`).children.length >= 10);
             if (userAnsVal >= 1000) {
-                if (needsLowerRegrouping) {
-                    fb.textContent = 'Correct value, but regrouping needed!';
-                    fb.className = 'feedback improper';
-                } else {
-                    fb.textContent = `Wow, ${userAnsVal.toFixed(2)}! Your answer is correct and too big for the board! 🎉`;
-                    fb.className = 'feedback correct';
-                }
+                if (needsLowerRegrouping) { fb.textContent = 'Correct value, but regrouping needed!'; fb.className = 'feedback improper'; } 
+                else { fb.textContent = `Wow, ${userAnsVal.toFixed(2)}! Your answer is correct and too big for the board! 🎉`; fb.className = 'feedback correct'; }
             } else {
                 const isImproper = needsLowerRegrouping || userAnsRow.querySelector(`.column[data-place="hundreds"]`).children.length >= 10;
-                if (isImproper) {
-                    fb.textContent = 'Correct value, but regrouping needed!';
-                    fb.className = 'feedback improper';
-                } else {
-                    fb.textContent = 'Perfect! 🎉';
-                    fb.className = 'feedback correct';
-                }
+                if (isImproper) { fb.textContent = 'Correct value, but regrouping needed!'; fb.className = 'feedback improper'; } 
+                else { fb.textContent = 'Perfect! 🎉'; fb.className = 'feedback correct'; }
             }
-        } else {
-            fb.textContent = 'Not quite, check your total!';
-            fb.className = 'feedback incorrect';
-        }
+        } else { fb.textContent = 'Not quite, check your total!'; fb.className = 'feedback incorrect'; }
     }
     function clearAll() { document.querySelectorAll('.column').forEach(col => col.innerHTML = ''); document.querySelectorAll('.digit-input').forEach(input => input.value = ''); document.getElementById('feedback').textContent = ''; document.querySelectorAll('.carry-input').forEach(input => input.value = ''); }
-    function clearAnswer() {
-        document.querySelectorAll('#answerRow .column').forEach(col => col.innerHTML = '');
-        document.querySelectorAll('#answerRow .digit-input').forEach(input => input.value = '');
-        document.querySelectorAll('.carry-input').forEach(input => input.value = '');
-        document.getElementById('feedback').textContent = '';
-    }
+    function clearAnswer() { document.querySelectorAll('#answerRow .column').forEach(col => col.innerHTML = ''); document.querySelectorAll('#answerRow .digit-input').forEach(input => input.value = ''); document.querySelectorAll('.carry-input').forEach(input => input.value = ''); document.getElementById('feedback').textContent = ''; }
 
     // --- Animation Functions ---
     function animateExchange(fromBlock, toColumn, exchangeRate, newBlockType) { const fromRect = fromBlock.getBoundingClientRect(); fromBlock.remove(); for (let i = 0; i < exchangeRate; i++) { const tempBlock = document.createElement('div'); tempBlock.className = `block ${newBlockType} block-anim`; document.body.appendChild(tempBlock); tempBlock.style.left = `${fromRect.left}px`; tempBlock.style.top = `${fromRect.top}px`; const toRect = toColumn.getBoundingClientRect(); const finalX = toRect.left + (toRect.width / 2) + (Math.random() - 0.5) * toRect.width * 0.8; const finalY = toRect.top + (toRect.height / 2) + (Math.random() - 0.5) * toRect.height * 0.8; tempBlock.style.setProperty('--explode-transform', `translate(${finalX - fromRect.left}px, ${finalY - fromRect.top}px)`); tempBlock.style.animationName = 'borrow-explode'; } setTimeout(() => { document.querySelectorAll('.block-anim').forEach(b => b.remove()); for (let i = 0; i < exchangeRate; i++) addBlock(toColumn, newBlockType); updateDigitsFromBlocks(toColumn.dataset.rowId); }, 950); }
     function animateCarry(fromColumn, toColumn, exchangeRate, newBlockType) { const blocksToAnimate = Array.from(fromColumn.children).slice(0, exchangeRate); const toRect = toColumn.getBoundingClientRect(); blocksToAnimate.forEach(block => { const startRect = block.getBoundingClientRect(); const tempBlock = block.cloneNode(true); tempBlock.classList.add('block-anim'); document.body.appendChild(tempBlock); tempBlock.style.left = `${startRect.left}px`; tempBlock.style.top = `${startRect.top}px`; const finalX = toRect.left + toRect.width / 2 - tempBlock.offsetWidth / 2; const finalY = toRect.top + toRect.height / 2 - tempBlock.offsetHeight / 2; tempBlock.style.setProperty('--explode-transform', `translate(${finalX - startRect.left}px, ${finalY - startRect.top}px) scale(0.2)`); tempBlock.style.animationName = 'borrow-explode'; }); blocksToAnimate.forEach(block => block.remove()); setTimeout(() => { document.querySelectorAll('.block-anim').forEach(b => b.remove()); addBlock(toColumn, newBlockType); updateDigitsFromBlocks(fromColumn.dataset.rowId); updateDigitsFromBlocks(toColumn.dataset.rowId); }, 950); }
     function animateCarryToCircle(fromColumn, carryInput, exchangeRate) { const blocksToAnimate = Array.from(fromColumn.children).slice(0, exchangeRate); const toRect = carryInput.getBoundingClientRect(); blocksToAnimate.forEach(block => { const startRect = block.getBoundingClientRect(); const tempBlock = block.cloneNode(true); tempBlock.classList.add('block-anim'); document.body.appendChild(tempBlock); tempBlock.style.left = `${startRect.left}px`; tempBlock.style.top = `${startRect.top}px`; const finalX = toRect.left + toRect.width / 2 - tempBlock.offsetWidth / 2; const finalY = toRect.top + toRect.height / 2 - tempBlock.offsetHeight / 2; tempBlock.style.setProperty('--explode-transform', `translate(${finalX - startRect.left}px, ${finalY - startRect.top}px) scale(0.1)`); tempBlock.style.animationName = 'borrow-explode'; }); blocksToAnimate.forEach(block => block.remove()); setTimeout(() => { document.querySelectorAll('.block-anim').forEach(b => b.remove()); const currentVal = parseInt(carryInput.value, 10) || 0; carryInput.value = currentVal + 1; updateDigitsFromBlocks(fromColumn.dataset.rowId); }, 950); }
     function animatePaletteExchange(toColumn, fromType, dropX, dropY) { const toPlace = toColumn.dataset.place; const fromValue = PLACE_VALUES[fromType]; const toValue = PLACE_VALUES[toPlace]; if (fromValue <= toValue) return; const exchangeRate = Math.round(fromValue / toValue); for (let i = 0; i < exchangeRate; i++) { const tempBlock = document.createElement('div'); tempBlock.className = `block ${toPlace} block-anim`; document.body.appendChild(tempBlock); tempBlock.style.left = `${dropX - (tempBlock.offsetWidth / 2)}px`; tempBlock.style.top = `${dropY - (tempBlock.offsetHeight / 2)}px`; const toRect = toColumn.getBoundingClientRect(); const finalX = toRect.left + (toRect.width / 2) + (Math.random() - 0.5) * toRect.width * 0.8; const finalY = toRect.top + (toRect.height / 2) + (Math.random() - 0.5) * toRect.height * 0.8; tempBlock.style.setProperty('--explode-transform', `translate(${finalX - dropX}px, ${finalY - dropY}px)`); tempBlock.style.animationName = 'borrow-explode'; } setTimeout(() => { document.querySelectorAll('.block-anim').forEach(b => b.remove()); for (let i = 0; i < exchangeRate; i++) { addBlock(toColumn, toPlace); } updateDigitsFromBlocks(toColumn.dataset.rowId); }, 950); }
+
+    // --- Drop Logic (re-used by mouse and touch) ---
+    function executeDrop(target, draggedInfo, clientX, clientY) {
+        if (!target || !draggedInfo) return;
+
+        const trashCan = document.getElementById('trash-can');
+        if (target === trashCan) {
+            if (draggedInfo && !draggedInfo.source) {
+                draggedInfo.element.remove();
+                updateDigitsFromBlocks(draggedInfo.fromRowId);
+            }
+            return;
+        }
+
+        const toColumn = target.classList.contains('column') ? target : target.closest('.column');
+        if (toColumn) {
+            if (draggedInfo.source === 'palette') {
+                if (draggedInfo.type === toColumn.dataset.place) {
+                    addBlock(toColumn, draggedInfo.type);
+                    updateDigitsFromBlocks(toColumn.dataset.rowId);
+                } else {
+                    animatePaletteExchange(toColumn, draggedInfo.type, clientX, clientY);
+                }
+            } else {
+                const fromColumn = draggedInfo.element.parentElement;
+                const fromPlace = fromColumn.dataset.place;
+                const toPlace = toColumn.dataset.place;
+                if (fromColumn.dataset.rowId !== toColumn.dataset.rowId) return;
+                const fromValue = PLACE_VALUES[fromPlace];
+                const toValue = PLACE_VALUES[toPlace];
+                if (fromValue > toValue) { const exchangeRate = Math.round(fromValue / toValue); animateExchange(draggedInfo.element, toColumn, exchangeRate, toPlace); } 
+                else if (fromValue < toValue) { const exchangeRate = Math.round(toValue / fromValue); if (fromColumn.children.length >= exchangeRate) { animateCarry(fromColumn, toColumn, exchangeRate, toPlace); } }
+            }
+            return;
+        }
+
+        const carryBox = target.classList.contains('carry-box') ? target : target.closest('.carry-box');
+        if (carryBox) {
+            const fromColumn = draggedInfo.element.parentElement;
+            if (fromColumn.dataset.rowId !== 'answerRow') return;
+
+            const fromPlace = fromColumn.dataset.place;
+            const carryInput = carryBox.querySelector('.carry-input');
+            if (!carryInput) return;
+            const toPlace = carryInput.dataset.place;
+            const fromIndex = PLACES.indexOf(fromPlace);
+            const toIndex = PLACES.indexOf(toPlace);
+
+            if (fromIndex === toIndex + 1) { 
+                const exchangeRate = 10;
+                if (fromColumn.children.length >= exchangeRate) {
+                    animateCarryToCircle(fromColumn, carryInput, exchangeRate);
+                }
+            }
+        }
+    }
+
+    // --- Touch Event Handlers ---
+    function handleTouchStart(e) {
+        const target = e.target.closest('.block');
+        if (target) {
+            e.preventDefault();
+            const sourceColumn = target.closest('.column');
+            draggedElementInfo = { element: target, type: target.dataset.type, source: target.dataset.source, fromRowId: sourceColumn ? sourceColumn.dataset.rowId : null };
+            target.classList.add('dragging');
+        }
+    }
+
+    function handleTouchMove(e) {
+        if (!draggedElementInfo) return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        const trashCan = document.getElementById('trash-can');
+        
+        if (lastTouchTarget && lastTouchTarget !== trashCan) {
+             lastTouchTarget.classList.remove('active');
+        }
+        trashCan.classList.remove('active');
+
+        if (elementUnderTouch) {
+            if(elementUnderTouch.id === 'trash-can'){
+                trashCan.classList.add('active');
+                lastTouchTarget = trashCan;
+            } else {
+                lastTouchTarget = elementUnderTouch;
+            }
+        }
+    }
+
+    function handleTouchEnd(e) {
+        if (!draggedElementInfo) return;
+        
+        const touch = e.changedTouches[0];
+        const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        executeDrop(dropTarget, draggedElementInfo, touch.clientX, touch.clientY);
+
+        draggedElementInfo.element.classList.remove('dragging');
+        document.getElementById('trash-can').classList.remove('active');
+        draggedElementInfo = null;
+        lastTouchTarget = null;
+    }
 
     // --- Main Setup and Event Listeners ---
     document.addEventListener('DOMContentLoaded', () => {
@@ -436,7 +516,6 @@
             PLACES.forEach((p, i) => {
                 problemHTML += `<div class="place-value-group ${p}-group">`;
                 problemHTML += `<span class="column-label">${p.charAt(0).toUpperCase() + p.slice(1)}</span>`;
-                
                 if (rowId === 'row1') {
                     problemHTML += `<div class="carry-box">`;
                     const carryPlaces = ['hundreds', 'tens', 'ones', 'tenths'];
@@ -445,7 +524,6 @@
                     }
                     problemHTML += `</div>`;
                 }
-
                 problemHTML += `<div class="column" data-row-id="${rowId}" data-place="${p}"></div><input type="number" class="digit-input" id="${prefix}-${p}"></div>`;
                 if (p === 'ones') problemHTML += `<div class="decimal-point">.</div>`;
             });
@@ -477,67 +555,30 @@
         document.getElementById('clearAllBtn').addEventListener('click', clearAll);
         document.getElementById('clearAnswerBtn').addEventListener('click', clearAnswer);
         document.getElementById('toggle-labels-btn').addEventListener('click', () => mainContainer.classList.toggle('labels-hidden'));
-        
-        document.getElementById('operation').addEventListener('change', () => { 
-            nextProblem();
-            toggleCarryRow();
-        });
+        document.getElementById('operation').addEventListener('change', () => { nextProblem(); toggleCarryRow(); });
 
+        // Mouse Drag Events
         document.addEventListener('dragstart', (e) => { if (e.target.classList.contains('block')) { const sourceColumn = e.target.closest('.column'); draggedElementInfo = { element: e.target, type: e.target.dataset.type, source: e.target.dataset.source, fromRowId: sourceColumn ? sourceColumn.dataset.rowId : null }; setTimeout(() => e.target.classList.add('dragging'), 0); } });
         document.addEventListener('dragend', (e) => { if (draggedElementInfo) { draggedElementInfo.element.classList.remove('dragging'); draggedElementInfo = null; } });
         
         const trashCan = document.getElementById('trash-can');
         trashCan.addEventListener('dragover', e => e.preventDefault());
         trashCan.addEventListener('dragenter', () => trashCan.classList.add('active'));
-        trashCan.addEventListener('dragleave', () => trashCan.classList.remove('active'));
-        trashCan.addEventListener('drop', e => { e.preventDefault(); if (draggedElementInfo && !draggedElementInfo.source) { draggedElementInfo.element.remove(); updateDigitsFromBlocks(draggedElementInfo.fromRowId); } trashCan.classList.remove('active'); });
+        trashCan.addEventListener('dragleave', () => trashCan.classList.remove('active');
+        trashCan.addEventListener('drop', e => { e.preventDefault(); executeDrop(trashCan, draggedElementInfo); trashCan.classList.remove('active'); });
 
-        document.querySelectorAll('.column').forEach(col => {
-            col.addEventListener('dragover', e => e.preventDefault());
-            col.addEventListener('drop', e => {
-                e.preventDefault(); if (!draggedElementInfo) return;
-                const fromColumn = draggedElementInfo.element.parentElement;
-                const toColumn = e.currentTarget;
-                if (draggedElementInfo.source === 'palette') {
-                    if (draggedElementInfo.type === toColumn.dataset.place) {
-                        addBlock(toColumn, draggedElementInfo.type);
-                        updateDigitsFromBlocks(toColumn.dataset.rowId);
-                    } else {
-                        animatePaletteExchange(toColumn, draggedElementInfo.type, e.clientX, e.clientY);
-                    }
-                } else { 
-                    const fromPlace = fromColumn.dataset.place; const toPlace = toColumn.dataset.place;
-                    if (fromColumn.dataset.rowId !== toColumn.dataset.rowId) return;
-                    const fromValue = PLACE_VALUES[fromPlace]; const toValue = PLACE_VALUES[toPlace];
-                    if (fromValue > toValue) { const exchangeRate = Math.round(fromValue / toValue); animateExchange(draggedElementInfo.element, toColumn, exchangeRate, toPlace); } 
-                    else if (fromValue < toValue) { const exchangeRate = Math.round(toValue / fromValue); if (fromColumn.children.length >= exchangeRate) { animateCarry(fromColumn, toColumn, exchangeRate, toPlace); } }
-                }
-            });
-        });
-        
-        document.querySelectorAll('.carry-box').forEach(box => {
-            box.addEventListener('dragover', e => e.preventDefault());
-            box.addEventListener('drop', e => {
+        document.querySelectorAll('.column, .carry-box').forEach(zone => {
+            zone.addEventListener('dragover', e => e.preventDefault());
+            zone.addEventListener('drop', e => {
                 e.preventDefault();
-                if (!draggedElementInfo || draggedElementInfo.source === 'palette') return;
-                const fromColumn = draggedElementInfo.element.parentElement;
-                if (fromColumn.dataset.rowId !== 'answerRow') return;
-
-                const fromPlace = fromColumn.dataset.place;
-                const carryInput = e.currentTarget.querySelector('.carry-input');
-                if(!carryInput) return;
-                const toPlace = carryInput.dataset.place;
-                const fromIndex = PLACES.indexOf(fromPlace);
-                const toIndex = PLACES.indexOf(toPlace);
-
-                if (fromIndex === toIndex + 1) { 
-                    const exchangeRate = 10;
-                    if (fromColumn.children.length >= exchangeRate) {
-                        animateCarryToCircle(fromColumn, carryInput, exchangeRate);
-                    }
-                }
+                executeDrop(zone, draggedElementInfo, e.clientX, e.clientY);
             });
         });
+
+        // Touch Drag Events
+        document.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
     });
 </script>
 </body>
